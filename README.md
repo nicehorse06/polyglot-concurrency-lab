@@ -1,65 +1,106 @@
+# polyglot-concurrency-lab
 
-# Python Concurrency Exploration
+A teaching repo to compare concurrency behavior across **Go / Python / Rust** under the same workload contract.
 
-This project explores various concurrency models in Python, focusing on different combinations of task types (I/O-bound and CPU-bound) and execution modes (single-thread, multi-thread, multi-process, single coroutine, and multi coroutine). It allows you to evaluate the best execution model based on the nature of the task being executed.
+Current implemented phase:
 
-## Task Types and Execution Modes
+- Workload: `cpu_hash` (CPU-bound)
+- Modes:
+  - Python: `single`, `threads`, `process`, `async`
+  - Go: `single`, `threads`, `process` (`goroutines` alias to thread worker pool)
+  - Rust: `single`, `threads`, `process`
+- Unified JSON metrics output for all languages
+- Unified summarizer: CSV + Markdown report
 
-### TaskType.IO
-- **Suitable for**: I/O-bound tasks such as file operations, network requests, or database queries. These tasks spend most of the time waiting for external resources.
-- **Recommended Execution Modes**:
-  - **SINGLE_THREAD**: Not recommended for I/O-bound tasks; inefficient due to waiting.
-  - **MULTI_THREAD**: Effective for I/O-bound tasks since threads can switch during I/O wait times.
-  - **SINGLE_COROUTINE**: Useful when tasks are simple and don't require full multi-threading.
-  - **MULTI_COROUTINE**: Excellent for handling many I/O-bound tasks concurrently with minimal resource usage.
+## Why this repo
 
-### TaskType.CPU
-- **Suitable for**: CPU-bound tasks that involve heavy computations like mathematical calculations, image processing, or data analysis.
-- **Recommended Execution Modes**:
-  - **SINGLE_THREAD**: Poor performance for CPU-bound tasks, as only one core is used.
-  - **MULTI_THREAD**: Limited effectiveness for CPU-bound tasks due to Python's Global Interpreter Lock (GIL).
-  - **MULTI_PROCESS**: Best for CPU-bound tasks, as it leverages multiple CPU cores to run tasks in parallel.
+Interview prep often asks:
 
-## Understanding the Global Interpreter Lock (GIL)
+- Why Python threads may not speed up CPU-bound tasks (GIL)
+- Why process pools can help CPU-bound workloads
+- How Go goroutines and Rust threads differ in ergonomics and overhead
+- How to compare throughput/latency fairly across languages
 
-The Global Interpreter Lock (GIL) is a mechanism in CPython (the most common Python interpreter) that allows only one thread to execute Python bytecode at a time. This lock is necessary because Python's memory management is not thread-safe.
+This repo gives deterministic, reproducible runs to answer those quickly.
 
-- **Effect on multi-threading**: The GIL limits the ability of Python to execute CPU-bound tasks in parallel using threads. Even if you use multiple threads, only one thread can execute Python code at any given time, which makes multi-threading less effective for CPU-bound tasks.
-  
-- **Workaround**: For CPU-bound tasks, using **multi-processing** is recommended because each process has its own GIL, allowing true parallelism across multiple CPU cores.
+## Workload Specs
 
-## Execution Modes Overview
-1. **SINGLE_THREAD**: Sequentially executes tasks in a single thread. Useful for simple operations but inefficient for both I/O-bound and CPU-bound tasks.
-   
-2. **MULTI_THREAD**: Runs tasks in parallel using threads, ideal for I/O-bound tasks but constrained by the GIL for CPU-bound operations.
+See [workloads/spec.md](workloads/spec.md).
 
-3. **MULTI_PROCESS**: Runs tasks in parallel across multiple processes. Highly recommended for CPU-bound tasks, as each process runs in its own memory space, bypassing the GIL.
+- `cpu_hash` is implemented.
+- `io_files`, `mixed_pipeline`, `fanout_fanin` are scaffolded for next phase.
 
-4. **SINGLE_COROUTINE**: Executes asynchronous tasks in a non-blocking manner, one at a time. Suitable for I/O-bound tasks, but limited to single-threaded execution.
+## Quick Start
 
-5. **MULTI_COROUTINE**: Runs multiple asynchronous tasks concurrently. Well-suited for handling large numbers of I/O-bound tasks efficiently with minimal overhead.
-
-## Running the Project
-
-To execute the code and observe the performance of different combinations of `TaskType` and execution modes:
+### 1) Run all (recommended)
 
 ```bash
-python main.py
+./scripts/run_all.sh
 ```
 
-You can modify the `task_type` and `run_mode` variables in `main.py` to test different combinations.
+Outputs:
 
-### Example
-To run a multi-process test for CPU-bound tasks, set:
-```python
-task_type = TaskType.CPU
-run_mode = RunMode.MULTI_PROCESS
-```
+- `results/latest/*.json`
+- `results/latest/summary.csv`
+- `results/latest/summary.md`
 
-## Running Unit Tests
+### 2) Run each language manually
 
-This project includes unit tests that mock time-consuming operations like `time.sleep` and `asyncio.sleep` to allow for fast test execution. To run the tests:
+Python:
 
 ```bash
-python -m unittest test_main.py
+PYTHONPATH=python/src python -m runner \
+  --workload cpu_hash --mode process --tasks 120 --concurrency 4 --payload 256 --iters 200 \
+  --output results/latest/py_cpu_hash_process.json --seed 42
 ```
+
+Go:
+
+```bash
+cd go
+go run ./cmd/runner --workload cpu_hash --mode process --tasks 120 --concurrency 4 --payload 256 --iters 200 --output ../results/latest/go_cpu_hash_process.json --seed 42
+```
+
+Rust:
+
+```bash
+cd rust
+cargo run --release -- --workload cpu_hash --mode process --tasks 120 --concurrency 4 --payload 256 --iters 200 --output ../results/latest/rs_cpu_hash_process.json --seed 42
+```
+
+## Output Schema
+
+Each run writes JSON with:
+
+- `meta`: language/version/workload/mode/tasks/concurrency/payload/iters/warmup/timestamp/env/seed
+- `metrics`: wall time, throughput, latency p50/p95/p99, optional CPU/RSS, errors, checksum samples
+
+## How to Interpret Results
+
+- `cpu_hash` is CPU-bound:
+  - Python: `process` typically outperforms `threads` for CPU-heavy tasks.
+  - Go/Rust: threaded execution usually scales better with available cores.
+- Use the same `tasks/payload/iters` when comparing languages.
+- CI runner numbers and local machine numbers are expected to differ.
+
+## Common Pitfalls
+
+- Python GIL can limit CPU-bound thread speedups.
+- Process mode has serialization and startup overhead.
+- Goroutines are lightweight but still have scheduling/GC costs.
+- Async is mainly useful for I/O-bound workloads, not pure CPU hashing.
+
+## Repo Layout
+
+- `workloads/spec.md`: workload contract and correctness rules
+- `scripts/run_all.sh`: one-command benchmark launcher
+- `scripts/summarize.py`: JSON -> CSV/Markdown summary
+- `python/src/runner`: Python CLI runner
+- `go/cmd/runner`: Go CLI runner
+- `rust/src/main.rs`: Rust CLI runner
+- `.github/workflows/bench.yml`: minimal CI benchmark
+
+## Notes
+
+- This phase intentionally uses minimal dependencies.
+- Missing toolchains are skipped by `run_all.sh` with clear logs.

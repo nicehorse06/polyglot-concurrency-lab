@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "language": "python",
+    "version": "3.9.6",
+    "workload": "cpu_hash",
+    "mode": "single",
+    "mode_effective": "single",
+    "tasks": 20,
+    "concurrency": 2,
+    "payload": 64,
+    "iters": 40,
+    "warmup": 0,
+    "timestamp": "2026-02-24T03:10:02.458943+00:00",
+    "env": {
+      "os": "Darwin",
+      "arch": "arm64",
+      "cpu_model": "arm",
+      "cpu_cores": 10,
+      "mem_total": "unknown",
+      "python": "3.9.6"
+    },
+    "seed": 42
+  },
+  "metrics": {
+    "wall_time_total_ms": 0.29,
+    "throughput_tasks_per_sec": 69015.018,
+    "latency_ms": {
+      "p50": 0.008,
+      "p95": 0.008,
+      "p99": 0.013,
+      "avg": 0.008
+    },
+    "cpu_time_ms": null,
+    "max_rss_mb": null,
+    "errors": {
+      "count": 0,
+      "samples": []
+    },
+    "checksum_sample": [
+      "b81a65b5af3ce7ae",
+      "a21e32126fe14879",
+      "2272aa103c5a241c",
+      "369d0f026664c624",
+      "d3cdad4bf7d5a3fe"
+    ]
+  }
+}
